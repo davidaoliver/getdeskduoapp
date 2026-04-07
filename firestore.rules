@@ -1,0 +1,65 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users: can read/write own doc, admins can read shop members
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Shops: anyone authed can read, only owner/super_admin can write
+    match /shops/{shopId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['super_admin']
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.shop_id == shopId;
+    }
+
+    // Services: anyone can read (for booking), admins of the shop can write
+    match /services/{serviceId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+    }
+
+    // Barbers: anyone can read (for booking), admins of the shop can write
+    match /barbers/{barberId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+    }
+
+    // Availability: anyone can read, barber or admin can write
+    match /availability/{availId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+    }
+
+    // Appointments: clients can read own, admins can read shop's, booking done via Cloud Function
+    match /appointments/{aptId} {
+      allow read: if request.auth != null
+        && (resource.data.client_id == request.auth.uid
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin']);
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
+        && (resource.data.client_id == request.auth.uid
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin']);
+    }
+
+    // TimeOffBlocks: anyone can read (for availability), admins can write
+    match /timeOffBlocks/{blockId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+    }
+
+    // PendingStaff: only super_admins can read/write
+    match /pendingStaff/{email} {
+      allow read, write: if request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+    }
+  }
+}

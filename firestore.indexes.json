@@ -1,0 +1,45 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "appointments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "barber_id", "order": "ASCENDING" },
+        { "fieldPath": "start_time", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "appointments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shop_id", "order": "ASCENDING" },
+        { "fieldPath": "start_time", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "appointments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "client_id", "order": "ASCENDING" },
+        { "fieldPath": "start_time", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "availability",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "barber_id", "order": "ASCENDING" },
+        { "fieldPath": "day_of_week", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "timeOffBlocks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "barber_id", "order": "ASCENDING" },
+        { "fieldPath": "start_time", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
