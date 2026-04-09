@@ -1,8 +1,6 @@
 import { identity } from "firebase-functions/v2";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { initializeApp } from "firebase-admin/app";
-
-initializeApp();
+// App initialized in index.ts
 const db = getFirestore();
 
 /**
@@ -38,6 +36,7 @@ export const onUserSignIn = identity.beforeUserSignedIn(async (event) => {
     phone: user.phoneNumber ?? "",
     display_name: user.displayName ?? "",
     role,
+    no_show_count: 0,
     created_at: FieldValue.serverTimestamp(),
   };
 

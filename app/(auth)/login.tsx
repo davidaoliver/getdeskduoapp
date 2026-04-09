@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -8,15 +8,37 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ScrollView,
 } from "react-native";
 import { router } from "expo-router";
-import { signInWithEmail, signUpWithEmail } from "../../lib/firebase";
+import {
+  signInWithEmail,
+  signUpWithEmail,
+  signInWithGoogle,
+  auth,
+  PhoneAuthProvider,
+  RecaptchaVerifier,
+} from "../../lib/firebase";
+import { signInWithCredential } from "firebase/auth";
+import { colors, fonts, spacing, borderRadius } from "../../lib/theme";
+
+type AuthMode = "email" | "phone";
 
 export default function LoginScreen() {
+  const [mode, setMode] = useState<AuthMode>("email");
+
+  // Email state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
+
+  // Phone state
+  const [phone, setPhone] = useState("");
+  const [verificationId, setVerificationId] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+
   const [loading, setLoading] = useState(false);
+  const recaptchaRef = useRef<any>(null);
 
   const handleEmailAuth = async () => {
     if (!email || !password) {
@@ -38,55 +60,197 @@ export default function LoginScreen() {
     }
   };
 
+  const handleGoogleAuth = async () => {
+    setLoading(true);
+    try {
+      await signInWithGoogle();
+      router.replace("/");
+    } catch (error: any) {
+      if (error.code !== "auth/popup-closed-by-user") {
+        Alert.alert("Error", error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendPhoneCode = async () => {
+    if (!phone.trim()) {
+      Alert.alert("Error", "Please enter your phone number.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const formatted = phone.startsWith("+") ? phone : `+1${phone.replace(/\D/g, "")}`;
+
+      if (Platform.OS === "web") {
+        if (!recaptchaRef.current) {
+          recaptchaRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
+            size: "invisible",
+          });
+        }
+      }
+
+      const provider = new PhoneAuthProvider(auth);
+      const id = await provider.verifyPhoneNumber(formatted, recaptchaRef.current);
+      setVerificationId(id);
+      Alert.alert("Code Sent", "Check your phone for a verification code.");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to send code.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyPhoneCode = async () => {
+    if (!code.trim() || !verificationId) {
+      Alert.alert("Error", "Please enter the verification code.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const credential = PhoneAuthProvider.credential(verificationId, code);
+      await signInWithCredential(auth, credential);
+      router.replace("/");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Invalid code.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View style={styles.inner}>
-        <Text style={styles.title}>DeskDuo</Text>
-        <Text style={styles.subtitle}>
-          {isSignUp ? "Create your account" : "Welcome back"}
-        </Text>
+      <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
+        <Text style={styles.title}>Welcome</Text>
+        <Text style={styles.subtitle}>Sign in to book your appointment</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-
+        {/* Google button */}
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleEmailAuth}
+          style={[styles.socialButton, styles.googleButton, loading && styles.buttonDisabled]}
+          onPress={handleGoogleAuth}
           disabled={loading}
         >
-          <Text style={styles.buttonText}>
-            {loading ? "..." : isSignUp ? "Sign Up" : "Sign In"}
-          </Text>
+          <Text style={styles.googleText}>Continue with Google</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.switchButton}
-          onPress={() => setIsSignUp(!isSignUp)}
-        >
-          <Text style={styles.switchText}>
-            {isSignUp
-              ? "Already have an account? Sign in"
-              : "Don't have an account? Sign up"}
-          </Text>
-        </TouchableOpacity>
-      </View>
+        {/* Divider */}
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Mode tabs */}
+        <View style={styles.tabs}>
+          <TouchableOpacity
+            style={[styles.tab, mode === "email" && styles.tabActive]}
+            onPress={() => { setMode("email"); setVerificationId(null); }}
+          >
+            <Text style={[styles.tabText, mode === "email" && styles.tabTextActive]}>Email</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, mode === "phone" && styles.tabActive]}
+            onPress={() => setMode("phone")}
+          >
+            <Text style={[styles.tabText, mode === "phone" && styles.tabTextActive]}>Phone</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Email form */}
+        {mode === "email" && (
+          <>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={handleEmailAuth}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? "..." : isSignUp ? "Sign Up" : "Sign In"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.switchButton}
+              onPress={() => setIsSignUp(!isSignUp)}
+            >
+              <Text style={styles.switchText}>
+                {isSignUp ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* Phone form */}
+        {mode === "phone" && !verificationId && (
+          <>
+            <TextInput
+              style={styles.input}
+              placeholder="Phone number (e.g. 5551234567)"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+            />
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={sendPhoneCode}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? "Sending..." : "Send Code"}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {mode === "phone" && verificationId && (
+          <>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter 6-digit code"
+              value={code}
+              onChangeText={setCode}
+              keyboardType="number-pad"
+              maxLength={6}
+            />
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={verifyPhoneCode}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? "Verifying..." : "Verify & Sign In"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.switchButton}
+              onPress={() => { setVerificationId(null); setCode(""); }}
+            >
+              <Text style={styles.switchText}>Resend code</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {Platform.OS === "web" && <View nativeID="recaptcha-container" />}
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -94,60 +258,115 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: colors.background,
   },
   inner: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing["3xl"],
     maxWidth: 400,
     width: "100%",
     alignSelf: "center",
   },
   title: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: "#1e293b",
+    fontSize: fonts.sizes["4xl"],
+    fontWeight: fonts.weights.extrabold,
+    color: colors.text,
     textAlign: "center",
-    marginBottom: 8,
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: "#64748b",
+    fontSize: fonts.sizes.base,
+    color: colors.textSecondary,
     textAlign: "center",
-    marginBottom: 32,
+    marginBottom: spacing["2xl"],
+  },
+  socialButton: {
+    borderRadius: borderRadius.md,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderWidth: 1,
+  },
+  googleButton: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+  },
+  googleText: {
+    fontSize: fonts.sizes.base,
+    fontWeight: fonts.weights.semibold,
+    color: colors.text,
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: spacing.xl,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    marginHorizontal: spacing.md,
+    color: colors.textMuted,
+    fontSize: fonts.sizes.sm,
+  },
+  tabs: {
+    flexDirection: "row",
+    backgroundColor: colors.borderLight,
+    borderRadius: borderRadius.sm,
+    padding: 3,
+    marginBottom: spacing.lg,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+    borderRadius: borderRadius.sm - 2,
+  },
+  tabActive: {
+    backgroundColor: colors.surface,
+  },
+  tabText: {
+    fontSize: fonts.sizes.sm,
+    fontWeight: fonts.weights.medium,
+    color: colors.textMuted,
+  },
+  tabTextActive: {
+    color: colors.text,
   },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 14,
-    fontSize: 16,
-    marginBottom: 12,
+    fontSize: fonts.sizes.base,
+    marginBottom: spacing.md,
   },
   button: {
-    backgroundColor: "#2563eb",
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.lg,
     alignItems: "center",
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    color: colors.white,
+    fontSize: fonts.sizes.base,
+    fontWeight: fonts.weights.semibold,
   },
   switchButton: {
-    marginTop: 16,
+    marginTop: spacing.lg,
     alignItems: "center",
   },
   switchText: {
-    color: "#2563eb",
-    fontSize: 14,
+    color: colors.primary,
+    fontSize: fonts.sizes.sm,
   },
 });

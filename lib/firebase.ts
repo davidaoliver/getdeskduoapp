@@ -5,24 +5,34 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged,
+  PhoneAuthProvider,
+  linkWithCredential,
+  signInWithPhoneNumber,
+  signInWithPopup,
+  GoogleAuthProvider,
+  RecaptchaVerifier,
   type User,
+  type ConfirmationResult,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 
-// TODO: Replace with your Firebase project config
-// Create a project at https://console.firebase.google.com
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyCn5YbUnhjrYRk7L5V8Tfh2WfDR4MD1yOc",
+  authDomain: "deskduo-c3982.firebaseapp.com",
+  projectId: "deskduo-c3982",
+  storageBucket: "deskduo-c3982.firebasestorage.app",
+  messagingSenderId: "597628002604",
+  appId: "1:597628002604:web:67952b104ea7912c850c89",
+  measurementId: "G-LLVGWF8K54",
 };
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const functions = getFunctions(app);
+
+const googleProvider = new GoogleAuthProvider();
 
 export async function signInWithEmail(email: string, password: string) {
   return signInWithEmailAndPassword(auth, email, password);
@@ -32,8 +42,20 @@ export async function signUpWithEmail(email: string, password: string) {
   return createUserWithEmailAndPassword(auth, email, password);
 }
 
+export async function signInWithGoogle() {
+  return signInWithPopup(auth, googleProvider);
+}
+
 export async function signOut() {
   return firebaseSignOut(auth);
 }
 
-export { onAuthStateChanged, type User };
+export {
+  onAuthStateChanged,
+  PhoneAuthProvider,
+  linkWithCredential,
+  signInWithPhoneNumber,
+  RecaptchaVerifier,
+  type User,
+  type ConfirmationResult,
+};

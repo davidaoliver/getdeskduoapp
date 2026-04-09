@@ -4,6 +4,12 @@ export type UserRole = "client" | "admin" | "super_admin";
 export type AppointmentStatus = "booked" | "completed" | "cancelled" | "no_show";
 export type AppointmentSource = "app" | "web" | "ai" | "walk_in";
 
+export interface DayHours {
+  open: string; // "09:00"
+  close: string; // "17:00"
+  closed: boolean;
+}
+
 export interface Shop {
   shop_id: string;
   owner_id: string;
@@ -14,6 +20,8 @@ export interface Shop {
   ai_enabled: boolean;
   ai_settings?: Record<string, any>;
   timezone: string;
+  operating_hours: { [day: number]: DayHours }; // 0 = Sunday, 6 = Saturday
+  cancellation_cutoff_hours: number; // default 2
   created_at: Timestamp;
 }
 
@@ -25,6 +33,7 @@ export interface AppUser {
   role: UserRole;
   shop_id?: string;
   push_token?: string;
+  no_show_count: number;
   created_at: Timestamp;
 }
 
@@ -62,11 +71,16 @@ export interface Appointment {
   shop_id: string;
   barber_id: string;
   client_id: string;
-  service_id: string;
+  service_ids: string[];
   start_time: Timestamp;
   end_time: Timestamp;
   status: AppointmentStatus;
   source: AppointmentSource;
+  client_name?: string; // for walk-ins without accounts
+  client_phone?: string; // for walk-ins without accounts
+  cancelled_at?: Timestamp;
+  cancelled_by?: string; // uid of who cancelled
+  rescheduled_from?: string; // apt_id of original appointment
   created_at: Timestamp;
 }
 

@@ -3,63 +3,97 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users: can read/write own doc, admins can read shop members
+    // Helper: get the requesting user's doc
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Users: can read/write own doc, admins can read members of their shop
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null
+        && (request.auth.uid == userId
+            || (userDoc().role in ['admin', 'super_admin']
+                && resource.data.shop_id == userDoc().shop_id));
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Shops: anyone authed can read, only owner/super_admin can write
+    // Shops: anyone authed can read, only owner/super_admin of that shop can write
     match /shops/{shopId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['super_admin']
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.shop_id == shopId;
+      allow create: if request.auth != null
+        && userDoc().role == 'super_admin'
+        && !('shop_id' in userDoc()) || userDoc().shop_id == null;
+      allow update: if request.auth != null
+        && userDoc().role == 'super_admin'
+        && userDoc().shop_id == shopId;
+      allow delete: if false;
     }
 
-    // Services: anyone can read (for booking), admins of the shop can write
+    // Services: anyone can read (for booking), only admins of THAT shop can write
     match /services/{serviceId} {
       allow read: if true;
-      allow write: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+      allow create: if request.auth != null
+        && userDoc().role in ['admin', 'super_admin']
+        && request.resource.data.shop_id == userDoc().shop_id;
+      allow update, delete: if request.auth != null
+        && userDoc().role in ['admin', 'super_admin']
+        && resource.data.shop_id == userDoc().shop_id;
     }
 
-    // Barbers: anyone can read (for booking), admins of the shop can write
+    // Barbers: anyone can read (for booking), only admins of THAT shop can write
     match /barbers/{barberId} {
       allow read: if true;
-      allow write: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+      allow create: if request.auth != null
+        && userDoc().role in ['admin', 'super_admin']
+        && request.resource.data.shop_id == userDoc().shop_id;
+      allow update, delete: if request.auth != null
+        && userDoc().role in ['admin', 'super_admin']
+        && resource.data.shop_id == userDoc().shop_id;
     }
 
-    // Availability: anyone can read, barber or admin can write
+    // Availability: anyone can read, only admins of THAT shop can write
     match /availability/{availId} {
       allow read: if true;
-      allow write: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+      allow create: if request.auth != null
+        && userDoc().role in ['admin', 'super_admin']
+        && request.resource.data.shop_id == userDoc().shop_id;
+      allow update, delete: if request.auth != null
+        && userDoc().role in ['admin', 'super_admin']
+        && resource.data.shop_id == userDoc().shop_id;
     }
 
-    // Appointments: clients can read own, admins can read shop's, booking done via Cloud Function
+    // Appointments: clients read own, admins read their shop's. Booking via Cloud Function preferred.
     match /appointments/{aptId} {
       allow read: if request.auth != null
         && (resource.data.client_id == request.auth.uid
-            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin']);
-      allow create: if request.auth != null;
+            || (userDoc().role in ['admin', 'super_admin']
+                && resource.data.shop_id == userDoc().shop_id));
+      allow create: if request.auth != null
+        && (request.resource.data.client_id == request.auth.uid
+            || (userDoc().role in ['admin', 'super_admin']
+                && request.resource.data.shop_id == userDoc().shop_id));
       allow update: if request.auth != null
         && (resource.data.client_id == request.auth.uid
-            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin']);
+            || (userDoc().role in ['admin', 'super_admin']
+                && resource.data.shop_id == userDoc().shop_id));
+      allow delete: if false;
     }
 
-    // TimeOffBlocks: anyone can read (for availability), admins can write
+    // TimeOffBlocks: anyone can read (for availability checks), only admins of THAT shop can write
     match /timeOffBlocks/{blockId} {
       allow read: if true;
-      allow write: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+      allow create: if request.auth != null
+        && userDoc().role in ['admin', 'super_admin']
+        && request.resource.data.shop_id == userDoc().shop_id;
+      allow update, delete: if request.auth != null
+        && userDoc().role in ['admin', 'super_admin']
+        && resource.data.shop_id == userDoc().shop_id;
     }
 
-    // PendingStaff: only super_admins can read/write
+    // PendingStaff: only super_admins of their own shop can read/write
     match /pendingStaff/{email} {
       allow read, write: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+        && userDoc().role == 'super_admin';
     }
   }
 }
