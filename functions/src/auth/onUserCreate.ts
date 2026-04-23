@@ -42,6 +42,15 @@ export const onUserSignIn = identity.beforeUserSignedIn(async (event) => {
 
   if (shopId) {
     userData.shop_id = shopId;
+    // When a shop was provisioned externally (e.g. from the web CRM), the
+    // shop doc has owner_id = null. Fill it in now that we know the uid.
+    if (role === "super_admin") {
+      try {
+        await db.collection("shops").doc(shopId).update({ owner_id: uid });
+      } catch {
+        // Shop doc may not exist yet or already have an owner; ignore.
+      }
+    }
   }
 
   await db.collection("users").doc(uid).set(userData);
