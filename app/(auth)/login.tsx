@@ -14,12 +14,12 @@ import { router } from "expo-router";
 import {
   signInWithEmail,
   signUpWithEmail,
-  signInWithGoogle,
   auth,
   PhoneAuthProvider,
   RecaptchaVerifier,
 } from "../../lib/firebase";
 import { signInWithCredential } from "firebase/auth";
+import { useGoogleSignIn } from "../../lib/hooks/useGoogleSignIn";
 import { colors, fonts, spacing, borderRadius } from "../../lib/theme";
 
 type AuthMode = "email" | "phone";
@@ -39,6 +39,8 @@ export default function LoginScreen() {
 
   const [loading, setLoading] = useState(false);
   const recaptchaRef = useRef<any>(null);
+
+  const { signIn: googleSignIn, isReady: googleReady } = useGoogleSignIn();
 
   const handleEmailAuth = async () => {
     if (!email || !password) {
@@ -63,11 +65,11 @@ export default function LoginScreen() {
   const handleGoogleAuth = async () => {
     setLoading(true);
     try {
-      await signInWithGoogle();
-      router.replace("/");
-    } catch (error: any) {
-      if (error.code !== "auth/popup-closed-by-user") {
-        Alert.alert("Error", error.message);
+      const result = await googleSignIn();
+      if (result.ok) {
+        router.replace("/");
+      } else if (result.error !== "cancelled") {
+        Alert.alert("Error", result.error);
       }
     } finally {
       setLoading(false);
@@ -130,9 +132,13 @@ export default function LoginScreen() {
 
         {/* Google button */}
         <TouchableOpacity
-          style={[styles.socialButton, styles.googleButton, loading && styles.buttonDisabled]}
+          style={[
+            styles.socialButton,
+            styles.googleButton,
+            (loading || !googleReady) && styles.buttonDisabled,
+          ]}
           onPress={handleGoogleAuth}
-          disabled={loading}
+          disabled={loading || !googleReady}
         >
           <Text style={styles.googleText}>Continue with Google</Text>
         </TouchableOpacity>

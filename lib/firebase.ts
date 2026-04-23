@@ -8,8 +8,6 @@ import {
   PhoneAuthProvider,
   linkWithCredential,
   signInWithPhoneNumber,
-  signInWithPopup,
-  GoogleAuthProvider,
   RecaptchaVerifier,
   type User,
   type ConfirmationResult,
@@ -32,18 +30,12 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const functions = getFunctions(app);
 
-const googleProvider = new GoogleAuthProvider();
-
 export async function signInWithEmail(email: string, password: string) {
   return signInWithEmailAndPassword(auth, email, password);
 }
 
 export async function signUpWithEmail(email: string, password: string) {
   return createUserWithEmailAndPassword(auth, email, password);
-}
-
-export async function signInWithGoogle() {
-  return signInWithPopup(auth, googleProvider);
 }
 
 export async function signOut() {
