@@ -1,6 +1,9 @@
+import { Platform } from "react-native";
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
+  initializeAuth,
+  getReactNativePersistence,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -9,9 +12,11 @@ import {
   linkWithCredential,
   signInWithPhoneNumber,
   RecaptchaVerifier,
+  type Auth,
   type User,
   type ConfirmationResult,
 } from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 
@@ -26,7 +31,16 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+
+// On native, persist auth state to AsyncStorage so users stay signed in
+// across app restarts. On web, getAuth uses IndexedDB by default.
+export const auth: Auth =
+  Platform.OS === "web"
+    ? getAuth(app)
+    : initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage),
+      });
+
 export const db = getFirestore(app);
 export const functions = getFunctions(app);
 

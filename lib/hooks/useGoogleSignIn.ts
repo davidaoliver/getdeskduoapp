@@ -19,10 +19,16 @@ const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 
 type SignInResult = { ok: true } | { ok: false; error: string };
 
+// Fall back to the web client ID so useAuthRequest has a non-empty value
+// and doesn't throw at init on native dev builds. If the real platform
+// client ID isn't set we refuse at signIn time with a clear message.
+const ANDROID_ID_EFFECTIVE = ANDROID_CLIENT_ID || WEB_CLIENT_ID;
+const IOS_ID_EFFECTIVE = IOS_CLIENT_ID || WEB_CLIENT_ID;
+
 export function useGoogleSignIn() {
   const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: ANDROID_CLIENT_ID,
-    iosClientId: IOS_CLIENT_ID,
+    androidClientId: ANDROID_ID_EFFECTIVE,
+    iosClientId: IOS_ID_EFFECTIVE,
     webClientId: WEB_CLIENT_ID,
   });
 
@@ -41,15 +47,29 @@ export function useGoogleSignIn() {
   const signIn = useCallback(async (): Promise<SignInResult> => {
     try {
       if (Platform.OS === "web") {
+        if (!WEB_CLIENT_ID) {
+          return {
+            ok: false,
+            error: "Google sign-in isn't configured. Missing EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.",
+          };
+        }
         await signInWithPopup(auth, webProvider);
         return { ok: true };
       }
 
-      if (!ANDROID_CLIENT_ID && !IOS_CLIENT_ID) {
+      if (Platform.OS === "android" && !ANDROID_CLIENT_ID) {
         return {
           ok: false,
           error:
-            "Google sign-in isn't configured for native yet. Set EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID / EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID in .env.",
+            "Google sign-in on Android needs EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID. Use email or phone for now.",
+        };
+      }
+
+      if (Platform.OS === "ios" && !IOS_CLIENT_ID) {
+        return {
+          ok: false,
+          error:
+            "Google sign-in on iOS needs EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID. Use email or phone for now.",
         };
       }
 
