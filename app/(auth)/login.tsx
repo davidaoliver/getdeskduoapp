@@ -38,6 +38,7 @@ export default function LoginScreen() {
   const [code, setCode] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const recaptchaRef = useRef<any>(null);
 
   const { signIn: googleSignIn, isReady: googleReady } = useGoogleSignIn();
@@ -178,13 +179,24 @@ export default function LoginScreen() {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
+            <View style={styles.passwordRow}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                style={styles.passwordToggle}
+                onPress={() => setShowPassword((v) => !v)}
+                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+              >
+                <Text style={styles.passwordToggleText}>{showPassword ? "🙈" : "👁"}</Text>
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity
               style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleEmailAuth}
@@ -351,6 +363,28 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: fonts.sizes.base,
     marginBottom: spacing.md,
+  },
+  passwordRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    fontSize: fonts.sizes.base,
+  },
+  passwordToggle: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
+  },
+  passwordToggleText: {
+    fontSize: fonts.sizes.lg,
   },
   button: {
     backgroundColor: colors.primary,
