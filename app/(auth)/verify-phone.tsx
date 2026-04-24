@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -10,22 +10,15 @@ import {
   Alert,
 } from "react-native";
 import { router } from "expo-router";
-import {
-  auth,
-  PhoneAuthProvider,
-  linkWithCredential,
-  db,
-} from "../../lib/firebase";
-import { RecaptchaVerifier } from "firebase/auth";
-import { doc, updateDoc } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../../lib/firebase";
 import { colors, fonts, spacing, borderRadius } from "../../lib/theme";
 
 export default function VerifyPhoneScreen() {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
-  const [verificationId, setVerificationId] = useState<string | null>(null);
+  const [codeSent, setCodeSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const recaptchaRef = useRef<any>(null);
 
   const sendCode = async () => {
     if (!phone.trim()) {
@@ -35,26 +28,9 @@ export default function VerifyPhoneScreen() {
 
     setLoading(true);
     try {
-      // Format phone number
-      const formatted = phone.startsWith("+") ? phone : `+1${phone.replace(/\D/g, "")}`;
-
-      if (Platform.OS === "web") {
-        if (!recaptchaRef.current) {
-          recaptchaRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
-            size: "invisible",
-          });
-        }
-        const provider = new PhoneAuthProvider(auth);
-        const id = await provider.verifyPhoneNumber(formatted, recaptchaRef.current);
-        setVerificationId(id);
-      } else {
-        // Native platforms — will need expo-firebase-recaptcha or similar
-        // For now, use the same web approach
-        const provider = new PhoneAuthProvider(auth);
-        const id = await provider.verifyPhoneNumber(formatted, recaptchaRef.current);
-        setVerificationId(id);
-      }
-
+      const sendOtp = httpsCallable(functions, "sendPhoneOtp");
+      await sendOtp({ phone });
+      setCodeSent(true);
       Alert.alert("Code Sent", "Check your phone for a verification code.");
     } catch (error: any) {
       Alert.alert("Error", error.message || "Failed to send code.");
@@ -64,25 +40,15 @@ export default function VerifyPhoneScreen() {
   };
 
   const verifyCode = async () => {
-    if (!code.trim() || !verificationId) {
+    if (!code.trim()) {
       Alert.alert("Error", "Please enter the verification code.");
       return;
     }
 
     setLoading(true);
     try {
-      const credential = PhoneAuthProvider.credential(verificationId, code);
-      const user = auth.currentUser;
-
-      if (user) {
-        // Link phone to existing account
-        await linkWithCredential(user, credential);
-
-        // Update the user doc with the verified phone
-        const formatted = phone.startsWith("+") ? phone : `+1${phone.replace(/\D/g, "")}`;
-        await updateDoc(doc(db, "users", user.uid), { phone: formatted });
-      }
-
+      const verify = httpsCallable(functions, "verifyPhoneOtp");
+      await verify({ phone, code });
       router.replace("/");
     } catch (error: any) {
       Alert.alert("Error", error.message || "Invalid code.");
@@ -102,7 +68,7 @@ export default function VerifyPhoneScreen() {
           We need your phone number to send appointment reminders.
         </Text>
 
-        {!verificationId ? (
+        {!codeSent ? (
           <>
             <TextInput
               style={styles.input}
@@ -144,7 +110,7 @@ export default function VerifyPhoneScreen() {
             <TouchableOpacity
               style={styles.resendButton}
               onPress={() => {
-                setVerificationId(null);
+                setCodeSent(false);
                 setCode("");
               }}
             >
@@ -152,8 +118,6 @@ export default function VerifyPhoneScreen() {
             </TouchableOpacity>
           </>
         )}
-
-        {Platform.OS === "web" && <View nativeID="recaptcha-container" />}
       </View>
     </KeyboardAvoidingView>
   );

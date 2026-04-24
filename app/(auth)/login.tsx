@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -15,10 +15,10 @@ import {
   signInWithEmail,
   signUpWithEmail,
   auth,
-  PhoneAuthProvider,
-  RecaptchaVerifier,
+  functions,
 } from "../../lib/firebase";
-import { signInWithCredential } from "firebase/auth";
+import { signInWithCustomToken } from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
 import { useGoogleSignIn } from "../../lib/hooks/useGoogleSignIn";
 import { colors, fonts, spacing, borderRadius } from "../../lib/theme";
 
@@ -39,7 +39,6 @@ export default function LoginScreen() {
 
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const recaptchaRef = useRef<any>(null);
 
   const { signIn: googleSignIn, isReady: googleReady } = useGoogleSignIn();
 
@@ -84,19 +83,9 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      const formatted = phone.startsWith("+") ? phone : `+1${phone.replace(/\D/g, "")}`;
-
-      if (Platform.OS === "web") {
-        if (!recaptchaRef.current) {
-          recaptchaRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
-            size: "invisible",
-          });
-        }
-      }
-
-      const provider = new PhoneAuthProvider(auth);
-      const id = await provider.verifyPhoneNumber(formatted, recaptchaRef.current);
-      setVerificationId(id);
+      const sendOtp = httpsCallable(functions, "sendPhoneOtp");
+      await sendOtp({ phone });
+      setVerificationId("sent");
       Alert.alert("Code Sent", "Check your phone for a verification code.");
     } catch (error: any) {
       Alert.alert("Error", error.message || "Failed to send code.");
@@ -112,8 +101,16 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      const credential = PhoneAuthProvider.credential(verificationId, code);
-      await signInWithCredential(auth, credential);
+      const verify = httpsCallable<
+        { phone: string; code: string },
+        { customToken: string }
+      >(functions, "verifyPhoneOtp");
+      const result = await verify({ phone, code });
+      const token = result.data?.customToken;
+      if (!token) {
+        throw new Error("No auth token returned");
+      }
+      await signInWithCustomToken(auth, token);
       router.replace("/");
     } catch (error: any) {
       Alert.alert("Error", error.message || "Invalid code.");
@@ -267,7 +264,6 @@ export default function LoginScreen() {
           </>
         )}
 
-        {Platform.OS === "web" && <View nativeID="recaptcha-container" />}
       </ScrollView>
     </KeyboardAvoidingView>
   );
